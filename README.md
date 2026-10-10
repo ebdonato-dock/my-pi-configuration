@@ -33,7 +33,11 @@ Pi's built-in MCP extension is disabled here in favor of `pi-mcp-adapter`.
 - Install Git.
 - For the Agentic Bus integration, install the Agentic Bus CLI through the instructions provided by your organization and make sure `agentic-bus` is on your `PATH`. You need your own authorized account; this repository does not grant access to the service.
 - On Windows, install **Git Bash**. The committed `shellPath` points to `C:\Program Files\Git\bin\bash.exe`.
-- If you keep the Python-based fetch and Git MCP servers, install Python and [uv](https://docs.astral.sh/uv/) so `uvx` is available. The Node-based MCP servers use `npx`; Playwright also needs its browser dependencies.
+- The Node-based MCP servers use `npx`; Playwright also needs its browser dependencies.
+
+> **Windows shell configuration:** I use this setup on Windows, so `shellPath` in [`settings.json`](settings.json) (line 5) explicitly points to Git Bash: `C:\Program Files\Git\bin\bash.exe`. This forces Pi's `bash` tool calls to use Git Bash rather than relying on automatic shell detection. Update the path if Git is installed elsewhere, or remove this setting on Linux/macOS. Extensions that launch their own shell (such as background tasks) may use a separate shell policy.
+
+> **Python MCP requirement:** Some configured MCP servers (fetch and Git) are Python-based and launched through `uvx`. Install [uv](https://docs.astral.sh/uv/) (which includes `uvx`) and ensure both `uv` and `uvx` are available on your `PATH`. They are required if you keep these servers enabled; uv can manage the Python runtime they need.
 
 ### 2. Back up your existing Pi configuration
 
