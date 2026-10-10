@@ -1,5 +1,7 @@
 # My Pi configuration
 
+[English](README.md) | [Português](README.pt-BR.md)
+
 This repository contains my personal configuration for [Pi](https://pi.dev), the extensible coding agent harness. It lives in `~/.pi/agent` and brings together the extensions, prompt templates, theme, and settings I use in my day-to-day development workflow.
 
 My configuration is **heavily influenced by the Agentic Bus setup**, especially the integration scaffolded by `agentic-bus setup --pi`. Agentic Bus is the default provider, and the development prompts follow its skill-driven approach to investigation, surgical changes, testing, review, and explicit approval before Git operations.
