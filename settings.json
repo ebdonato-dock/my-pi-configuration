@@ -1,0 +1,28 @@
+{
+  "lastChangelogVersion": "1.1.0",
+  "enableSkillCommands": true,
+  "defaultProvider": "agentic-bus",
+  "shellPath": "C:\\Program Files\\Git\\bin\\bash.exe",
+  "theme": "alien-candy",
+  "terminal": {
+    "showTerminalProgress": true
+  },
+  "packages": [
+    "npm:pi-lens",
+    "npm:pi-mcp-adapter",
+    "npm:pi-subagents",
+    "npm:pi-background-tasks",
+    "npm:pi-mcb",
+    "npm:pi-rtk-optimizer",
+    "npm:pi-caveman",
+    "npm:pi-lazy-extensions",
+    "npm:cc-safety-net",
+    "npm:pi-web-access",
+    "npm:pi-memory",
+    "npm:graphify-pi",
+    "npm:pi-vision-handoff"
+  ],
+  "extensions": [
+    "-builtin:mcp"
+  ]
+}

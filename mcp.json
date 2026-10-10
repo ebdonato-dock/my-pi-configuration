@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "agentic-bus-platform": {
+      "url": "https://agentbus.dev.dock.tech/backend/production/mcp"
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--browser", "chromium"]
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"]
+    },
+    "git": {
+      "command": "uvx",
+      "args": ["mcp-server-git"]
+    }
+  }
+}
