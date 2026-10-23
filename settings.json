@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "1.1.0",
+  "lastChangelogVersion": "1.4.0",
   "enableSkillCommands": true,
   "defaultProvider": "agentic-bus",
   "shellPath": "C:\\Program Files\\Git\\bin\\bash.exe",

@@ -31,6 +31,7 @@ Identify the root cause, specify a surgical fix, break down tasks (if necessary)
 ### Sequential Execution Workflow
 
 1. **Investigation & Context (`/skill:ask-matt`)**
+   - **Kanban — Em andamento (`in_progress`):** ao iniciar o desenvolvimento, mova o Feedback para `in_progress` com `platform_admin_triage_feedback` e registre em `status_note` que o trabalho começou (agente/contexto). Faça isso **antes** de qualquer alteração de código. Uma transição por round.
    - Analyze logs, diffs, commits, or description do ticket informado, ignoring compiled artifacts and assets.
    - If you cannot map a subsystem/flow after reasonable exploration (e.g. repeated failed searches on unfamiliar code), consult the repository knowledge graph: run `graphify_update` first (incremental refresh), then `graphify_query`/`graphify_path`/`graphify_explain` — never read raw `graphify-out/graph.json` wholesale.
    - Report in 3 concise bullet points in pt-br: [Sintoma/Problema], [Causa Raiz Identificada], [Arquivos/Linhas Afetados].
@@ -63,3 +64,4 @@ Identify the root cause, specify a surgical fix, break down tasks (if necessary)
    - If a corresponding ticket exists, populate the **dedicated feedback platform field** linking the PR to the respective ticket.
    - After final validation, 🛑 **STOP and ask in pt-br**: *"As alterações, a vinculação da PR no campo do ticket e a documentação estão prontas. Deseja que eu faça o commit (com Conventional Commits) e o push para o repositório?"*
    - Proceed with Git operations only after receiving explicit confirmation (while adhering to `git-guardrails`).
+   - **Kanban — Code Review (`in_code_review`):** após o push e a abertura da PR, mova o Feedback para `in_code_review` com `platform_admin_triage_feedback`, preenchendo `pull_requests` (`{repo, number, url, head_sha, state}`) para vincular a PR e registrando em `status_note` o resumo da entrega. O `done` fica para depois da revisão/merge.
