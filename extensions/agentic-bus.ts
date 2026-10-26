@@ -95,6 +95,7 @@ export default async function (pi: ExtensionAPI) {
           cached_input_per_1m?: number;
           context_window?: number;
           max_tokens?: number;
+          supports_store?: boolean;
         };
       }>;
     };
@@ -113,6 +114,11 @@ export default async function (pi: ExtensionAPI) {
       // fallback: constantes do scaffold (entries sem limites, ex. agents/teams).
       contextWindow: m.metadata?.context_window ?? 128000,
       maxTokens: m.metadata?.max_tokens ?? 4096,
+      // capacidade por modelo (GET /v1/models metadata.supports_store);
+      // só emite compat quando o catálogo declara false explicitamente.
+      ...(m.metadata?.supports_store === false
+        ? { compat: { supportsStore: false } }
+        : {}),
     }));
   } catch (error) {
     console.warn(
