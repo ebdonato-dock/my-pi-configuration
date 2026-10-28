@@ -26,9 +26,13 @@ const AUTH_CMD = IS_WIN ? "cmd" : "/bin/sh";
 const AUTH_ARGS = IS_WIN
   ? ["/c", "agentic-bus", "auth", "token"]
   : ["-lc", "agentic-bus auth token"];
-// O hook apiKey e resolvido pelo NUCLEO do pi, que no Windows executa via
-// git-bash (bash -c) — la o shim sem extensao do npm funciona. Diferente do
-// currentToken acima (execFileSync direto), o hook NAO deve usar cmd /c.
+// O hook apiKey e resolvido pelo NUCLEO do pi, que executa hooks via bash em
+// toda plataforma (Git Bash no Windows) — la o shim sem extensao do npm
+// funciona. Diferente do currentToken acima (execFileSync direto), o hook NAO
+// deve usar cmd /c. Este arquivo e versionado no repo e compartilhado entre
+// Windows/Linux/macOS, entao AUTH_HOOK fica sempre na forma POSIX
+// (`/bin/sh -lc`, shell de LOGIN) — a variante Windows (comando direto) so
+// vale no models.json, que e por maquina e tem precedencia sobre a extensao.
 const AUTH_HOOK = "!/bin/sh -lc 'agentic-bus auth token'";
 
 // Header -> campo do `agentic-bus client-context` (fonte única no CLI).
