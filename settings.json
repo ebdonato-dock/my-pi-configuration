@@ -2,11 +2,13 @@
   "lastChangelogVersion": "1.4.0",
   "enableSkillCommands": true,
   "defaultProvider": "agentic-bus",
+  "defaultModel": "llm/databricks/system.ai.deepseek-v4-1-flash-1017",
   "shellPath": "C:\\Program Files\\Git\\bin\\bash.exe",
   "theme": "alien-candy",
   "terminal": {
     "showTerminalProgress": true
   },
+  "npmCommand": ["bun"],
   "packages": [
     "npm:pi-lens",
     "npm:pi-mcp-adapter",
