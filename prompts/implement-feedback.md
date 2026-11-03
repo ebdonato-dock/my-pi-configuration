@@ -30,35 +30,40 @@ Identify the root cause, specify a surgical fix, break down tasks (if necessary)
 
 ### Sequential Execution Workflow
 
-1. **Investigation & Context (`/skill:ask-matt`)**
+1. **Criação de Branch (Gitflow) — PRIMEIRO PASSO, antes de qualquer implementação**
+   - Determine a branch base do repositório alvo (`develop` quando existir, senão `main`); pergunte quando estiver indefinido.
+   - Crie a branch seguindo a Gitflow Naming Convention `<type>/<short-description>` (ex.: `feature/mcp-fetch-server`, `fix/...`, `chore/...`, `docs/...`, `test/...`, `hotfix/...`).
+   - Nunca commite diretamente na branch base. Reporte em pt-br o nome da branch criada antes de prosseguir.
+
+2. **Investigation & Context (`/skill:ask-matt`)**
    - **Kanban — Em andamento (`in_progress`):** ao iniciar o desenvolvimento, mova o Feedback para `in_progress` com `platform_admin_triage_feedback` e registre em `status_note` que o trabalho começou (agente/contexto). Faça isso **antes** de qualquer alteração de código. Uma transição por round.
    - Analyze logs, diffs, commits, or description do ticket informado, ignoring compiled artifacts and assets.
    - If you cannot map a subsystem/flow after reasonable exploration (e.g. repeated failed searches on unfamiliar code), consult the repository knowledge graph: run `graphify_update` first (incremental refresh), then `graphify_query`/`graphify_path`/`graphify_explain` — never read raw `graphify-out/graph.json` wholesale.
    - Report in 3 concise bullet points in pt-br: [Sintoma/Problema], [Causa Raiz Identificada], [Arquivos/Linhas Afetados].
 
-2. **Surgical Specification (`/skill:to-spec`)**
+3. **Surgical Specification (`/skill:to-spec`)**
    - Detail the minimal change required to address the root cause along with the technical rationale.
    - 🛑 **MANDATORY PAUSE (Human-in-the-Loop):** Present the summarized specification in pt-br and await explicit approval before proceeding.
 
-3. **Task Decomposition (`/skill:to-tickets`)** *(Post-approval)*
+4. **Task Decomposition (`/skill:to-tickets`)** *(Post-approval)*
    - If the task spans multiple repositories or subsystems, break it down into smaller sub-tasks. For single/simple changes, skip this step by stating in pt-br: "Mudança pontual, ignorando decomposição."
 
-4. **Test-Driven Surgical Implementation**
+5. **Test-Driven Surgical Implementation**
    - **4.1 (`/skill:tdd`):** FIRST create or update the unit/integration tests that reproduce the failure or validate the new rule (Red phase).
    - **4.2 (Surgical Patch):** Generate the specification for the smallest possible code patch required to satisfy the newly created tests — narrowest responsible layer, no out-of-scope refactoring, cleanup, renaming, or abstraction.
-   - **4.3 (`/skill:implement-spec`):** Apply code changes strictly following the specification approved in Step 2 until all tests pass (Green phase).
+   - **4.3 (`/skill:implement-spec`):** Apply code changes strictly following the specification approved in Step 3 until all tests pass (Green phase).
    - Confirm and report the test suite PASS status in pt-br.
 
-5. **Code Review (`/skill:code-review`)**
+6. **Code Review (`/skill:code-review`)**
    - Invoke the skill to inspect code compliance, potential side effects, test coverage, and security before closing.
 
-6. **Architectural Decision Record (`ADR`)**
+7. **Architectural Decision Record (`ADR`)**
    - If the solution involves an architectural shift, new API contract, pattern change, or significant behavior modification:
      * List the `docs/adr/` directory to identify the highest existing sequential ID.
      * Create a new file incrementing the number (e.g., `docs/adr/000N-[decision-title].md`) using the MADR format, containing: Status (Accepted), Context, Decision, and Consequences.
    - *For trivial fixes/features with no architectural impact, skip by reporting in pt-br:* "Sem impacto arquitetural, ADR dispensada."
 
-7. **Finalization, Ticket Linking & Commit/Push**
+8. **Finalization, Ticket Linking & Commit/Push**
    - **Signal the Conventional Commits model in the commit message**: `<type>(<scope>): <summary>` (e.g. `fix(setup): ...`, `feat(scope): ...`, `chore(dogfood): ...`, `docs: ...`, `test: ...`, `refactor(scope): ...`) — short summary (pt-br, repo convention) and a body explaining what/why.
    - **Signal the Gitflow Naming Convention when creating branches**: `<type>/<short-description>` (e.g. `feature/mcp-fetch-server`, `fix/...`, `chore/...`, `docs/...`, `test/...`, `hotfix/...`) — determine the base branch from the target repository (`develop` when it exists, else `main`); ask when unclear; never commit directly to the base branch.
    - If a corresponding ticket exists, populate the **dedicated feedback platform field** linking the PR to the respective ticket.
