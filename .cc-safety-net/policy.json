@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "safety": {
+    "level": "strict",
+    "overrides": {
+      "fail_closed": true,
+      "paranoid_rm": true
+    }
+  },
+  "workflow": {
+    "worktree_mode": false
+  },
+  "destructive_command_protection": {
+    "enabled": true
+  },
+  "secret_protection": {
+    "enabled": true,
+    "allow_paths": [
+      ".env.example",
+      ".env.template"
+    ],
+    "deny_paths": [
+      "~/.ssh",
+      "~/.aws",
+      "~/.config/gcloud",
+      "~/.azure",
+      "~/.config/gh",
+      "~/.git-credentials",
+      "~/.gnupg",
+      "~/.npmrc",
+      "~/.bashrc",
+      "~/.zshrc",
+      "~/.kube",
+      "~/.docker/config.json",
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key",
+      "*.p12",
+      "*.pfx",
+      "id_rsa*",
+      "*credentials*.json"
+    ]
+  }
+}

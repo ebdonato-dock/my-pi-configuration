@@ -6,14 +6,39 @@
 // (apiKey "!comando") — nenhum segredo em arquivo do repo. Sem login,
 // o comando falha com stderr orientando `agentic-bus login`.
 //
-// Atribuição FinOps: headers `X-Run-Origin: pi` + `X-Client-Context-*`
-// (repo/branch/machine/username). São atribuição, NUNCA entram no prompt;
-// resolvidos UMA vez no load da extensão (4 subprocessos por sessão) para
-// não pagar spawn em cada request.
+// Atribuição FinOps: `X-Run-Origin: pi` é estático; `X-Client-Context-*`
+// acompanha o cwd e a branch da sessão a cada request, sem entrar no prompt.
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { appendFileSync, mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const BASE_URL = "https://agentbus.dev.dock.tech/backend";
+
+// --- Log de erro do tráfego provider → server (troubleshooting) ---
+// Best-effort: grava METADADOS (sem Authorization/corpo) em JSONL no mesmo
+// store que a CLI lê (`agentic-bus logs`); nunca quebra o request.
+function logDir(): string {
+  const override = process.env?.AGENTIC_BUS_LOG_DIR;
+  return override !== undefined && override.length > 0
+    ? override
+    : join(tmpdir(), "agentic-bus", "logs");
+}
+function logProviderError(entry: Record<string, unknown>): void {
+  try {
+    const dir = logDir();
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const file = join(dir, `error-${new Date().toISOString().slice(0, 10)}.jsonl`);
+    appendFileSync(file, `${JSON.stringify(entry)}\n`, { mode: 0o600 });
+  } catch {
+    /* troubleshooting nunca quebra a sessão */
+  }
+}
 
 // Windows: spawn/execFile sem shell nao resolve o shim .cmd do npm
 // (CreateProcess so executa .exe) — passa por cmd /c. Linux/mac: shell de
@@ -27,13 +52,14 @@ const AUTH_ARGS = IS_WIN
   ? ["/c", "agentic-bus", "auth", "token"]
   : ["-lc", "agentic-bus auth token"];
 // O hook apiKey e resolvido pelo NUCLEO do pi, que executa hooks via bash em
-// toda plataforma (Git Bash no Windows) — la o shim sem extensao do npm
-// funciona. Diferente do currentToken acima (execFileSync direto), o hook NAO
-// deve usar cmd /c. Este arquivo e versionado no repo e compartilhado entre
-// Windows/Linux/macOS, entao AUTH_HOOK fica sempre na forma POSIX
-// (`/bin/sh -lc`, shell de LOGIN) — a variante Windows (comando direto) so
-// vale no models.json, que e por maquina e tem precedencia sobre a extensao.
-const AUTH_HOOK = "!/bin/sh -lc 'agentic-bus auth token'";
+// toda plataforma (Git Bash no Windows) — la o shim sem extensao do npm roda
+// direto, entao no Windows o comando vai SEM wrapper. Diferente do currentToken
+// acima (execFileSync direto), o hook NAO deve usar cmd /c. No POSIX o hook
+// precisa de shell de LOGIN (`/bin/sh -lc`): o PATH de apps GUI (Homebrew) so
+// existe via /etc/profile. A escolha e em RUNTIME (IS_WIN) — o arquivo e
+// versionado e compartilhado entre os tres SOs, entao nao se congela uma forma
+// na geracao.
+const AUTH_HOOK = IS_WIN ? "!agentic-bus auth token" : "!/bin/sh -lc 'agentic-bus auth token'";
 
 // Header -> campo do `agentic-bus client-context` (fonte única no CLI).
 const CLIENT_CONTEXT_FIELDS: Record<string, string> =
@@ -43,6 +69,228 @@ const RUN_ORIGIN_HEADERS: Record<string, string> = { "X-Run-Origin": "pi" };
 // Cost fallback (zeros) — shape vem da fonte unica do CLI (pi-models.ts via
 // placeholder); modelos com rate no metadata de /v1/models sobrepoem.
 const COST_FALLBACK = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+
+// ---- Cache local (opt-in via `agentic-bus cache enable`) -------------------
+// Espelha o formato que a CLI dona (src/lib/cache-store.ts / cache-config.ts):
+// arquivo 0600, escrita atômica, leitura tolerante. Desabilitado por padrão.
+const CACHE_VERSION = 1;
+const CACHE_FILE = "cache.json";
+const CACHE_CONFIG_FILE = "config.json";
+const CACHE_AUTH_TTL_MS = 43200000;
+const CACHE_CLIENT_CONTEXT_TTL_MS = 300000;
+
+interface CacheAuthEntry {
+  token: string;
+  fingerprint: string;
+  expiresAt: number;
+}
+interface CacheContextEntry {
+  value: Record<string, string>;
+  fingerprint: string;
+  expiresAt: number;
+}
+interface CacheShape {
+  version: number;
+  auth?: CacheAuthEntry;
+  clientContext?: Record<string, CacheContextEntry>;
+}
+
+function cacheRoot(): string {
+  const base =
+    process.env.AGENTIC_BUS_CONFIG_HOME ?? path.join(os.homedir(), ".config");
+  return path.join(base, "agentic-bus");
+}
+function cachePath(): string {
+  return path.join(cacheRoot(), CACHE_FILE);
+}
+function cacheConfigPath(): string {
+  return path.join(cacheRoot(), CACHE_CONFIG_FILE);
+}
+
+function readCache(): CacheShape {
+  try {
+    const data: unknown = JSON.parse(fs.readFileSync(cachePath(), "utf8"));
+    if (typeof data !== "object" || data === null) return { version: CACHE_VERSION };
+    const obj = data as Record<string, unknown>;
+    if (obj.version !== CACHE_VERSION) return { version: CACHE_VERSION };
+    return {
+      version: CACHE_VERSION,
+      auth: obj.auth as CacheAuthEntry | undefined,
+      clientContext: obj.clientContext as Record<string, CacheContextEntry> | undefined,
+    };
+  } catch {
+    return { version: CACHE_VERSION };
+  }
+}
+
+function writeCache(cache: CacheShape): void {
+  try {
+    fs.mkdirSync(cacheRoot(), { recursive: true, mode: 0o700 });
+    const tmp = path.join(cacheRoot(), `.cache-${process.pid}-${Date.now()}.tmp`);
+    fs.writeFileSync(tmp, JSON.stringify(cache, null, 2) + "\n", {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    try {
+      fs.chmodSync(tmp, 0o600);
+    } catch {
+      // best-effort
+    }
+    fs.renameSync(tmp, cachePath());
+  } catch {
+    // best-effort: o cache nunca quebra o request
+  }
+}
+
+let configMemo: { mtimeMs: number; enabled: boolean } | undefined;
+function cacheEnabled(): boolean {
+  try {
+    const stat = fs.statSync(cacheConfigPath());
+    if (configMemo && configMemo.mtimeMs === stat.mtimeMs) return configMemo.enabled;
+    const data: unknown = JSON.parse(fs.readFileSync(cacheConfigPath(), "utf8"));
+    const obj = data as { cache?: { enabled?: unknown } };
+    const enabled =
+      typeof obj.cache === "object" &&
+      obj.cache !== null &&
+      obj.cache.enabled === true;
+    configMemo = { mtimeMs: stat.mtimeMs, enabled };
+    return enabled;
+  } catch {
+    configMemo = undefined;
+    return false;
+  }
+}
+
+function authFingerprint(): string {
+  try {
+    const stat = fs.statSync(path.join(cacheRoot(), "auth.json"));
+    return `${stat.mtimeMs}:${stat.size}`;
+  } catch {
+    return "";
+  }
+}
+
+function gitDirOf(root: string): string {
+  const dotGit = path.join(root, ".git");
+  try {
+    if (fs.statSync(dotGit).isDirectory()) return dotGit;
+  } catch {
+    return dotGit;
+  }
+  try {
+    const content = fs.readFileSync(dotGit, "utf8");
+    const match = /^gitdir:\s*(.+)$/m.exec(content);
+    if (match && match[1]) return path.resolve(root, match[1].trim());
+  } catch {
+    // ignora
+  }
+  return dotGit;
+}
+
+function findGitRoot(cwd: string): string | undefined {
+  let dir = cwd;
+  for (;;) {
+    try {
+      if (fs.existsSync(path.join(dir, ".git"))) return dir;
+    } catch {
+      // ignora
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return undefined;
+    dir = parent;
+  }
+}
+
+function clientFingerprint(cwd: string): string {
+  const root = findGitRoot(cwd);
+  if (!root) return `cwd:${cwd}`;
+  try {
+    const dir = gitDirOf(root);
+    const head = fs.readFileSync(path.join(dir, "HEAD"), "utf8").trim();
+    const stat = fs.statSync(path.join(dir, "config"));
+    return createHash("sha256").update(`${head}|${stat.mtimeMs}`).digest("hex");
+  } catch {
+    return `cwd:${cwd}`;
+  }
+}
+
+let authMemory: CacheAuthEntry | undefined;
+function resolveAuthToken(): string {
+  if (!cacheEnabled()) return currentToken();
+  const fingerprint = authFingerprint();
+  const now = Date.now();
+  if (authMemory && authMemory.fingerprint === fingerprint && authMemory.expiresAt > now) {
+    return authMemory.token;
+  }
+  const cache = readCache();
+  if (cache.auth && cache.auth.fingerprint === fingerprint && cache.auth.expiresAt > now) {
+    authMemory = cache.auth;
+    return cache.auth.token;
+  }
+  const token = currentToken();
+  const entry: CacheAuthEntry = { token, fingerprint, expiresAt: now + CACHE_AUTH_TTL_MS };
+  authMemory = entry;
+  cache.auth = entry;
+  writeCache(cache);
+  return token;
+}
+
+// Persistimos no formato "campo" do cache-store da CLI ({repo,branch,machine,username}),
+// NÃO no formato de header — a CLI e a extensão leem o MESMO arquivo cache.json.
+function headersFromFields(fields: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(CLIENT_CONTEXT_FIELDS).map(([header, field]) => [
+      header,
+      fields[field] ?? "unknown",
+    ]),
+  );
+}
+function fieldsFromHeaders(headers: Record<string, string>): Record<string, string> {
+  const fields: Record<string, string> = {};
+  for (const [header, field] of Object.entries(CLIENT_CONTEXT_FIELDS)) {
+    fields[field] = headers[header] ?? "unknown";
+  }
+  return fields;
+}
+
+const contextMemory = new Map<string, CacheContextEntry>();
+async function resolveClientContext(
+  pi: ExtensionAPI,
+  cwd: string,
+): Promise<Record<string, string>> {
+  if (!cacheEnabled()) return clientContextHeaders(pi, cwd);
+  const fingerprint = clientFingerprint(cwd);
+  const now = Date.now();
+  const inMemory = contextMemory.get(cwd);
+  if (inMemory && inMemory.fingerprint === fingerprint && inMemory.expiresAt > now) {
+    return headersFromFields(inMemory.value);
+  }
+  const cache = readCache();
+  const stored = cache.clientContext?.[cwd];
+  if (stored && stored.fingerprint === fingerprint && stored.expiresAt > now) {
+    contextMemory.set(cwd, stored);
+    return headersFromFields(stored.value);
+  }
+  const headers = await clientContextHeaders(pi, cwd);
+  const entry: CacheContextEntry = {
+    value: fieldsFromHeaders(headers),
+    fingerprint,
+    expiresAt: now + CACHE_CLIENT_CONTEXT_TTL_MS,
+  };
+  contextMemory.set(cwd, entry);
+  cache.clientContext = { ...(cache.clientContext ?? {}), [cwd]: entry };
+  writeCache(cache);
+  return headers;
+}
+
+function providerApiKey(): string {
+  if (!cacheEnabled()) return AUTH_HOOK;
+  try {
+    return resolveAuthToken();
+  } catch {
+    return AUTH_HOOK;
+  }
+}
 
 function currentToken(): string {
   try {
@@ -58,27 +306,45 @@ function currentToken(): string {
 }
 
 /**
- * Contexto de cliente do checkout atual — best-effort. Fora de repo git,
- * origin local ou CLI antigo: campo vira "" e o header é omitido; a run
- * segue sem atribuição (nunca derruba o modelo).
+ * Uma coleta por request com cwd da sessão, não do processo do host.
+ * Campos vazios viram "unknown"; falhas são tratadas pelo hook.
  */
-function clientContextHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {};
-  for (const [header, field] of Object.entries(CLIENT_CONTEXT_FIELDS)) {
-    try {
-      const value = execFileSync(
-        AUTH_CMD,
-        IS_WIN
-          ? ["/c", `agentic-bus client-context ${field}`]
-          : ["-lc", `agentic-bus client-context ${field}`],
-        { encoding: "utf8" },
-      ).trim();
-      if (value) headers[header] = value;
-    } catch {
-      // sem CLI no PATH ou fora de repo: atribuição fica ausente
-    }
+async function clientContextHeaders(pi: ExtensionAPI, cwd: string): Promise<Record<string, string>> {
+  const result = await pi.exec(
+    AUTH_CMD,
+    IS_WIN
+      ? ["/c", "agentic-bus client-context --json"]
+      : ["-lc", "agentic-bus client-context --json"],
+    { cwd, timeout: 10000 },
+  );
+  if (result.code !== 0) throw new Error("client-context falhou");
+  const context: unknown = JSON.parse(result.stdout);
+  if (typeof context !== "object" || context === null) {
+    throw new Error("client-context inválido");
   }
-  return headers;
+  const values = context as Record<string, unknown>;
+  return Object.fromEntries(Object.entries(CLIENT_CONTEXT_FIELDS).map(([header, field]) => {
+    const value = values[field];
+    if (typeof value !== "string") throw new Error("client-context incompleto");
+    return [header, value.trim() || "unknown"];
+  }));
+}
+function headerValue(headers: Record<string, string> | undefined, name: string): string | undefined {
+  if (headers === undefined) return undefined;
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() !== name) continue;
+    const value = headers[key];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  return undefined;
+}
+
+function responseRequestId(headers: Record<string, string> | undefined): string | undefined {
+  for (const name of ["x-run-id", "x-request-id", "x-thread-id"]) {
+    const value = headerValue(headers, name);
+    if (value !== undefined) return value;
+  }
+  return undefined;
 }
 
 export default async function (pi: ExtensionAPI) {
@@ -131,13 +397,87 @@ export default async function (pi: ExtensionAPI) {
     );
   }
 
+  let lastRequestAt = 0;
+  let lastModel: string | undefined;
+  pi.on("before_provider_request", (event) => {
+    lastRequestAt = Date.now();
+    const payload = event.payload;
+    if (payload !== null && typeof payload === "object" && "model" in payload) {
+      const model = (payload as { model?: unknown }).model;
+      if (typeof model === "string") lastModel = model;
+    }
+  });
+  pi.on("after_provider_response", (event) => {
+    if (event.status >= 200 && event.status < 300) return;
+    const requestId = responseRequestId(event.headers);
+    const serverDate = headerValue(event.headers, "date");
+    logProviderError({
+      ts: new Date().toISOString(),
+      level: "error",
+      source: "pi",
+      operation: "provider response",
+      status: event.status,
+      reason: `HTTP ${event.status}`,
+      model: lastModel,
+      durationMs: lastRequestAt > 0 ? Date.now() - lastRequestAt : undefined,
+      server: BASE_URL,
+      requestId,
+      serverDate,
+    });
+  });
+
   pi.registerProvider("agentic-bus", {
     name: "Dock Agentic Bus",
     baseUrl: `${BASE_URL}/v1`,
     api: "openai-completions",
-    apiKey: AUTH_HOOK,
+    apiKey: providerApiKey(),
     authHeader: true,
-    headers: { ...RUN_ORIGIN_HEADERS, ...clientContextHeaders() },
+    headers: RUN_ORIGIN_HEADERS,
     models,
+  });
+
+  let contextWarningShown = false;
+  pi.on("before_provider_headers", async (event, ctx) => {
+    const isAgenticBus = Object.entries(RUN_ORIGIN_HEADERS).every(
+      ([header, value]) => Object.entries(event.headers).some(
+        ([name, current]) => name.toLowerCase() === header.toLowerCase() && current === value,
+      ),
+    );
+    if (!isAgenticBus) return;
+    let headers: Record<string, string>;
+    if (cacheEnabled()) {
+      try {
+        const token = resolveAuthToken();
+        for (const name of Object.keys(event.headers)) {
+          if (name.toLowerCase() === "authorization") delete event.headers[name];
+        }
+        event.headers.Authorization = `Bearer ${token}`;
+      } catch {
+        // sem credencial em cache: mantém o Authorization resolvido pelo pi
+      }
+    }
+    try {
+      headers = await resolveClientContext(pi, ctx.cwd);
+    } catch {
+      if (!contextWarningShown) {
+        console.warn(
+          "[agentic-bus] client-context --json indisponível ou inválido; " +
+          "mantendo headers de fallback. Atualize a CLI e verifique o cwd da sessão.",
+        );
+        contextWarningShown = true;
+      }
+      headers = Object.fromEntries(Object.keys(CLIENT_CONTEXT_FIELDS).map((header) => {
+        const existing = Object.entries(event.headers).find(
+          ([name]) => name.toLowerCase() === header.toLowerCase(),
+        )?.[1];
+        return [header, typeof existing === "string" && existing.trim() ? existing : "unknown"];
+      }));
+    }
+    for (const [header, value] of Object.entries(headers)) {
+      for (const name of Object.keys(event.headers)) {
+        if (name !== header && name.toLowerCase() === header.toLowerCase()) delete event.headers[name];
+      }
+      event.headers[header] = value;
+    }
   });
 }
