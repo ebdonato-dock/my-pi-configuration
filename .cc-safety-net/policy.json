@@ -1,7 +1,7 @@
 {
   "version": 1,
   "safety": {
-    "level": "strict",
+    "level": "standard",
     "overrides": {
       "fail_closed": true,
       "paranoid_rm": true

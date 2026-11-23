@@ -40,6 +40,22 @@ function logProviderError(entry: Record<string, unknown>): void {
   }
 }
 
+// Nível de log efetivo: `AGENTIC_BUS_LOG_LEVEL=info` liga info+erro; default erro.
+function logLevel(): "info" | "error" {
+  return (process.env?.AGENTIC_BUS_LOG_LEVEL ?? "").toLowerCase() === "info"
+    ? "info"
+    : "error";
+}
+// Id de transporte 32-hex (formato uuid4().hex) — aceito pelo runtime (ADR-141).
+// Sem dep de crypto: a extensão roda no sandbox do pi e o id é só correlação
+// (spoofável por desenho; é correlação, não autenticação).
+function newRequestId(): string {
+  const hex = "0123456789abcdef";
+  let out = "";
+  for (let i = 0; i < 32; i++) out += hex[Math.floor(Math.random() * 16)];
+  return out;
+}
+
 // Windows: spawn/execFile sem shell nao resolve o shim .cmd do npm
 // (CreateProcess so executa .exe) — passa por cmd /c. Linux/mac: shell de
 // LOGIN (sh -lc) — sem isso, apps GUI (VS Code/pi) que nao herdam o PATH
@@ -339,14 +355,6 @@ function headerValue(headers: Record<string, string> | undefined, name: string):
   return undefined;
 }
 
-function responseRequestId(headers: Record<string, string> | undefined): string | undefined {
-  for (const name of ["x-run-id", "x-request-id", "x-thread-id"]) {
-    const value = headerValue(headers, name);
-    if (value !== undefined) return value;
-  }
-  return undefined;
-}
-
 export default async function (pi: ExtensionAPI) {
   let models: Array<Record<string, unknown>> = [];
   try {
@@ -399,6 +407,8 @@ export default async function (pi: ExtensionAPI) {
 
   let lastRequestAt = 0;
   let lastModel: string | undefined;
+  // Id de transporte da chamada corrente (gerado no before_provider_headers).
+  let pendingRequestId: string | undefined;
   pi.on("before_provider_request", (event) => {
     lastRequestAt = Date.now();
     const payload = event.payload;
@@ -408,12 +418,12 @@ export default async function (pi: ExtensionAPI) {
     }
   });
   pi.on("after_provider_response", (event) => {
-    if (event.status >= 200 && event.status < 300) return;
-    const requestId = responseRequestId(event.headers);
-    const serverDate = headerValue(event.headers, "date");
+    const isError = event.status < 200 || event.status >= 300;
+    // Default: só erro. `AGENTIC_BUS_LOG_LEVEL=info` grava sucesso também.
+    if (!isError && logLevel() !== "info") return;
     logProviderError({
       ts: new Date().toISOString(),
-      level: "error",
+      level: isError ? "error" : "info",
       source: "pi",
       operation: "provider response",
       status: event.status,
@@ -421,8 +431,9 @@ export default async function (pi: ExtensionAPI) {
       model: lastModel,
       durationMs: lastRequestAt > 0 ? Date.now() - lastRequestAt : undefined,
       server: BASE_URL,
-      requestId,
-      serverDate,
+      requestId: pendingRequestId,
+      runId: headerValue(event.headers, "x-run-id"),
+      serverDate: headerValue(event.headers, "date"),
     });
   });
 
@@ -444,6 +455,11 @@ export default async function (pi: ExtensionAPI) {
       ),
     );
     if (!isAgenticBus) return;
+    // Correlação de transporte por request: gera o id e o envia em
+    // `X-Request-Id`; o runtime adota/ecoa o mesmo valor (ADR-141). Guardado
+    // para o log do `after_provider_response` casar requestId↔runId.
+    pendingRequestId = newRequestId();
+    event.headers["X-Request-Id"] = pendingRequestId;
     let headers: Record<string, string>;
     if (cacheEnabled()) {
       try {

@@ -10,6 +10,14 @@
       "enabled": false
     }
   },
+  "rules": {
+    "high-complexity": {
+      "threshold": 25
+    },
+    "high-fan-out": {
+      "threshold": 30
+    }
+  },
   "ignore": [
     ".git/**",
     "node_modules/**",
@@ -29,6 +37,15 @@
     "**/__pycache__/**",
     "**/.pytest_cache/**",
     "**/.ruff_cache/**",
-    "**/.mypy_cache/**"
+    "**/.mypy_cache/**",
+    "**/*.lock",
+    "**/package-lock.json",
+    "**/pnpm-lock.yaml",
+    "**/yarn.lock",
+    "**/*.min.*",
+    "**/__tests__/**",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "**/fixtures/**"
   ]
 }

@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "1.5.2",
+  "lastChangelogVersion": "1.6.0",
   "enableSkillCommands": true,
   "defaultProvider": "agentic-bus",
   "defaultModel": "llm/databricks/system.ai.deepseek-v4-1-flash-1017",
@@ -19,29 +19,17 @@
     "npm:graphify-pi",
     "npm:pi-vision-handoff",
     "npm:pi-mcp-adapter",
-    "npm:billion-context",
     "npm:cc-safety-net",
     "npm:pi-lens",
-    "npm:pi-memory",
-    "npm:pi-skill-orchestrator",
-    "npm:@dietrichgebert/ponytail"
+    "npm:pi-subagents"
   ],
   "extensions": [
     "-builtin:mcp"
   ],
   "extensionChangelogVersions": {
-    "{\"source\":\"npm:pi-lens\",\"scope\":\"user\"}": "4.5.1",
-    "{\"source\":\"npm:pi-mcp-adapter\",\"scope\":\"user\"}": "7.0.1",
-    "{\"source\":\"npm:pi-memory\",\"scope\":\"user\"}": "0.4.2",
-    "{\"source\":\"npm:pi-skill-orchestrator\",\"scope\":\"user\"}": "0.1.26",
     "{\"source\":\"npm:pi-rtk-optimizer\",\"scope\":\"user\"}": "0.9.0",
-    "{\"source\":\"npm:pi-lens\",\"scope\":\"project\"}": "4.5.1",
-    "{\"source\":\"npm:pi-mcp-adapter\",\"scope\":\"project\"}": "7.0.1",
-    "{\"source\":\"npm:pi-subagents\",\"scope\":\"project\"}": "0.89.1",
-    "{\"source\":\"npm:pi-rtk-optimizer\",\"scope\":\"project\"}": "0.9.0",
-    "{\"source\":\"npm:pi-web-access\",\"scope\":\"project\"}": "0.48.0",
-    "{\"source\":\"npm:@gaodes/pi-graphify\",\"scope\":\"project\"}": "0.2.2",
-    "{\"source\":\"npm:pi-memory\",\"scope\":\"project\"}": "0.4.2",
-    "{\"source\":\"npm:pi-skill-orchestrator\",\"scope\":\"project\"}": "0.1.26"
+    "{\"source\":\"npm:pi-mcp-adapter\",\"scope\":\"user\"}": "7.0.1",
+    "{\"source\":\"npm:pi-lens\",\"scope\":\"user\"}": "4.5.2",
+    "{\"source\":\"npm:pi-subagents\",\"scope\":\"user\"}": "0.90.0"
   }
 }
