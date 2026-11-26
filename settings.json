@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "1.6.0",
+  "lastChangelogVersion": "1.6.1",
   "enableSkillCommands": true,
   "defaultProvider": "agentic-bus",
   "defaultModel": "llm/databricks/system.ai.deepseek-v4-1-flash-1017",
@@ -30,6 +30,9 @@
     "{\"source\":\"npm:pi-rtk-optimizer\",\"scope\":\"user\"}": "0.9.0",
     "{\"source\":\"npm:pi-mcp-adapter\",\"scope\":\"user\"}": "7.0.1",
     "{\"source\":\"npm:pi-lens\",\"scope\":\"user\"}": "4.5.2",
-    "{\"source\":\"npm:pi-subagents\",\"scope\":\"user\"}": "0.90.0"
+    "{\"source\":\"npm:pi-subagents\",\"scope\":\"user\"}": "0.90.0",
+    "{\"source\":\"npm:pi-mcp-adapter\",\"scope\":\"project\"}": "7.0.1",
+    "{\"source\":\"npm:pi-lens\",\"scope\":\"project\"}": "4.5.2",
+    "{\"source\":\"npm:pi-subagents\",\"scope\":\"project\"}": "0.90.0"
   }
 }
